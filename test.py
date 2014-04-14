@@ -1,7 +1,17 @@
 from vtk import *
 #import sys
 
+class A:
+    def __init__(self):
+        self.a = 5
+        
+    def AA(self):
+        print self.a
+
 if __name__ == "__main__":
+    a = A()
+    a.AA()
+    '''
     cylinder = vtkCylinderSource()
     cylinder.SetResolution(128)
     mapper = vtkPolyDataMapper()
@@ -20,3 +30,4 @@ if __name__ == "__main__":
     
     renWin.Render()
     iren.Start()
+    '''
