@@ -80,6 +80,7 @@ class MainWindow(QtGui.QWidget):
         self.draw_graph_from_file(inputFileName)
         
     def draw_graph(self):
+        print "rajesh# ", rajesh
         self.year = int(self.yearLe.text())
         self.month = int(self.monthLe.text())
         inputFileName = self.get_vtr_file()
