@@ -82,6 +82,117 @@ class MainWindow(QtGui.QWidget):
         self.month = int(self.monthLe.text())
         inputFileName = self.get_vtr_file()
         self.draw_graph_from_file(inputFileName)
+
+    def slice_data(self, dataset, arrayName, lower, upper):
+
+        dataset.GetPointData().SetActiveScalars(arrayName)
+        thresholdFilter = vtkThresholdPoints()
+        thresholdFilter.ThresholdBetween(lower, upper)
+        thresholdFilter.SetInput(dataset)
+        thresholdFilter.Update()
+
+        return thresholdFilter.GetOutput()
+
+    def get_phase_color_map(self, dataset):
+
+        transFunction = vtkDiscretizableColorTransferFunction()
+        transFunction.SetNumberOfValues(8)
+        transFunction.DiscretizeOn()
+        transFunction.AddRGBPoint(-1.0, 1, 1, 1)
+        transFunction.AddRGBPoint(-0.6, 0.902, 0.902, 0)
+        transFunction.AddRGBPoint(-0.757979, 0.9294, 0.9294, 0.2862)
+        #transFunction.AddRGBPoint(-0.488299, 236, 236, 59)
+        #transFunction.AddRGBPoint(0, 230, 0, 0)
+        #transFunction.AddRGBPoint(0.244677, 164, 0 , 0)
+        transFunction.AddRGBPoint(0.2, 0.902,0,0)
+        transFunction.AddRGBPoint(1.0, 0, 0, 0)
+
+        scalarBar = vtkScalarBarActor()
+        #scalarBar.SetLookupTable(colorLookupTable)
+        scalarBar.SetLookupTable(transFunction)
+        self.ren.AddActor2D(scalarBar)
+        colors = vtkUnsignedCharArray()
+        colors.SetNumberOfComponents(3)
+        colors.SetName("Colors")
+       
+        print '#no of tuples:', dataset.GetNumberOfTuples()
+        for i in range(dataset.GetNumberOfTuples()):
+            p = dataset.GetValue(i)
+            color = [0 for i in range(3)]
+            if p >= -1:  
+                dcolor = [0 for i in range(3)]
+                #colorLookupTable.GetColor(p, dcolor)
+                transFunction.GetColor(p, dcolor)
+                for j in range(3):
+                    color[j] = int(255.0 * dcolor[j])
+            else:
+                color[0] = 0
+                color[1] = 0
+                color[2] = 255
+
+            colors.InsertNextTupleValue(color)
+
+        return colors
+
+    def get_opacity_value(self, value, no_of_bands):
+        temp = (((value - self.amp_min) // (self.amp_max-self.amp_min)) + 1 ) * (255/no_of_bands)
+
+        return (255-temp)
+
+    def get_amp_color_map(self, dataset):
+
+        '''
+        transFunction = vtkDiscretizableColorTransferFunction()
+        transFunction.SetNumberOfValues(8)
+        transFunction.DiscretizeOn()
+        transFunction.EnableOpacityMappingOn()
+        transFunction.AddRGBPoint(-1.0, 1, 1, 1)
+        #transFunction.AddRGBPoint(-0.6, 0.902, 0.902, 0)
+        #transFunction.AddRGBPoint(-0.757979, 0.9294, 0.9294, 0.2862)
+        #transFunction.AddRGBPoint(-0.488299, 236, 236, 59)
+        #transFunction.AddRGBPoint(0, 230, 0, 0)
+        #transFunction.AddRGBPoint(0.244677, 164, 0 , 0)
+        #transFunction.AddRGBPoint(0.2, 0.902,0,0)
+        transFunction.AddRGBPoint(1.0, 1, 1, 1)
+        '''
+        (minv, maxv) = dataset.GetRange()
+        self.amp_min = minv
+        self.amp_max = maxv
+       
+        print "minv#, maxv#",  minv, maxv       
+        #scalarBar = vtkScalarBarActor()
+        #scalarBar.SetLookupTable(colorLookupTable)
+        #scalarBar.SetLookupTable(transFunction)
+        #self.ren.AddActor2D(scalarBar)
+        colors = vtkUnsignedCharArray()
+        colors.SetNumberOfComponents(4)
+        colors.SetName("Colors")
+       
+        for i in range(dataset.GetNumberOfTuples()):
+            p = dataset.GetValue(i)
+            color = [0 for i in range(4)]
+            color[0] = 255
+            color[1] = 255
+            color[2] = 255
+            color[3] = 255
+            if p >= -1:  
+                color[3] = self.get_opacity_value(p, 16)
+
+            colors.InsertNextTupleValue(color)
+
+        return colors
+
+    def clone_data(self, dataset):
+
+        calc = vtkArrayCalculator()
+        calc.SetInput(dataset)
+        calc.AddScalarArrayName("ampanomfil")
+        calc.SetFunction("ampanomfil");
+        calc.SetResultArrayName("clone");
+        calc.Update();
+        
+        return calc.GetOutput()
+        
     
     def draw_graph_from_file(self, inputFileName):
         
