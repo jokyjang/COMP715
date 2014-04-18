@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import sys
 from vtk import *
 from PyQt4 import QtCore, QtGui
@@ -59,16 +60,17 @@ class MainWindow(QtGui.QWidget):
         self.setLayout(vbox)
         QtGui.QApplication.setStyle(QtGui.QStyleFactory.create('Cleanlooks'))
         
-        self.setGeometry(300, 300, 600, 400)
+        self.setGeometry(1200, 800, 800, 600)
         
         self.setWindowTitle('Visualization in Science')
         #self.show()
     
     def get_vtr_file(self):
         
-        root = '/Users/zhangzhx/Dropbox/Homework/VisSci/HW1/Data'
-        index = (self.year - 1800)*12+self.month
-        return "%s/sst_%d/sst_%d_0_0.vtr" % (root, index, index)
+        root = '/home/rajesh/Documents/UNC/4th sem/visualization/HWs/Project/data'
+        #index = (self.year - 1800)*12+self.month
+        index = 0
+        return "%s/test/test_%d_0.vtr" % (root, index)
     
     def load_vtr_file(self):
         
@@ -78,6 +80,7 @@ class MainWindow(QtGui.QWidget):
         self.draw_graph_from_file(inputFileName)
         
     def draw_graph(self):
+        print "rajesh# ", rajesh
         self.year = int(self.yearLe.text())
         self.month = int(self.monthLe.text())
         inputFileName = self.get_vtr_file()
@@ -88,12 +91,14 @@ class MainWindow(QtGui.QWidget):
         dataset.GetPointData().SetActiveScalars(arrayName)
         thresholdFilter = vtkThresholdPoints()
         thresholdFilter.ThresholdBetween(lower, upper)
-        thresholdFilter.SetInput(dataset)
+        thresholdFilter.SetInputData(dataset)
         thresholdFilter.Update()
 
         return thresholdFilter.GetOutput()
 
     def get_phase_color_map(self, dataset):
+        
+        print 'hi'
 
         transFunction = vtkDiscretizableColorTransferFunction()
         transFunction.SetNumberOfValues(8)
@@ -176,7 +181,7 @@ class MainWindow(QtGui.QWidget):
             color[2] = 255
             color[3] = 255
             if p >= -1:  
-                color[3] = self.get_opacity_value(p, 16)
+                color[3] = int(round(self.get_opacity_value(p, 16)))
 
             colors.InsertNextTupleValue(color)
 
@@ -185,7 +190,7 @@ class MainWindow(QtGui.QWidget):
     def clone_data(self, dataset):
 
         calc = vtkArrayCalculator()
-        calc.SetInput(dataset)
+        calc.SetInputData(dataset)
         calc.AddScalarArrayName("ampanomfil")
         calc.SetFunction("ampanomfil");
         calc.SetResultArrayName("clone");
@@ -193,7 +198,6 @@ class MainWindow(QtGui.QWidget):
         
         return calc.GetOutput()
         
-    
     def draw_graph_from_file(self, inputFileName):
         
         print inputFileName
@@ -201,65 +205,61 @@ class MainWindow(QtGui.QWidget):
         reader.SetFileName(str(inputFileName))
         reader.Update()
         
+        #returns a rectilinear grid
         reader.GetOutput().Register(reader)
+        #typecasting to a more general class vtkDataSet
         dataSet = vtkDataSet.SafeDownCast(reader.GetOutput())
-        '''
-        numOfCells = dataSet.GetNumberOfCells()
-        numOfPoints = dataSet.GetNumberOfPoints()
-        print dataSet.GetClassName()
-        print '# of cells:', numOfCells
-        print '# of points:', numOfPoints
-        '''
-        
+
+        clone = self.clone_data(dataSet)
+       
+        #dataSet = self.slice_data(dataSet, 'phaseanomfil', -1, 1)
         pd = dataSet.GetPointData()
         numOfArrays = pd.GetNumberOfArrays()
-        sstData = pd.GetArray('sst')
+        sstData = pd.GetArray('phaseanomfil')
         #print sstData.__class__
-        #for i in range(numOfArrays):
-        #    print pd.GetArrayName(i)
+        for i in range(numOfArrays):
+            print pd.GetArrayName(i)
         
-        #print sstData.GetSize()
-        #print sstData.GetValue(16000)
-        #print sstData.GetElementComponentSize()
-        #print sstData.PrintSelf(0)
+        print sstData.GetSize()
+        print sstData.GetValue(16000)
+        print sstData.GetNumberOfComponents()
+        print dataSet.GetPoint(16000)
         (minz, maxz) = sstData.GetRange()
         #print minz, maxz
-        
-        # Create the color map
-        colorLookupTable = vtkLookupTable()
-        colorLookupTable.SetTableRange(minz, maxz)
-        colorLookupTable.Build()
-        
-        # Generate the colors for each point based on the color map
-        colors = vtkUnsignedCharArray()
-        colors.SetNumberOfComponents(3)
-        colors.SetName("Colors")
-        
-        for i in range(dataSet.GetNumberOfPoints()):
-            p = sstData.GetValue(i)
-            
-            dcolor = [0 for i in range(3)]
-            colorLookupTable.GetColor(p, dcolor)
-            
-            color = [0 for i in range(3)]
-            for j in range(3):
-                color[j] = int(255.0 * dcolor[j])
-            
-            colors.InsertNextTupleValue(color)
-        
+       
+        colors = self.get_phase_color_map(sstData)
         dataSet.GetPointData().SetScalars(colors)
         
         # Create a mapper
         mapper = vtkDataSetMapper()
         #mapper.SetInputConnection(reader.GetOutputPort())
         mapper.SetInputData(dataSet)
+        mapper.ScalarVisibilityOn()
         #mapper.SetInputData(sstData)
         
         # Create an actor
         actor = vtkActor()
         actor.SetMapper(mapper)
  
+        #amplitude part starts here
+
+        clone = self.slice_data(clone, 'ampanomfil', -1, 1)
+        amplData = clone.GetPointData().GetArray('ampanomfil')
+
+
+        colors1 = self.get_amp_color_map(amplData)
+        clone.GetPointData().SetScalars(colors1)
+
+        ampMapper = vtkDataSetMapper()
+        ampMapper.SetInputData(clone)
+        ampMapper.ScalarVisibilityOn()
+
+        actor2 = vtkActor()
+        actor2.SetMapper(ampMapper)
+        #actor2.GetProperty().SetOpacity(0.995);
+
         self.ren.AddActor(actor)
+        self.ren.AddActor(actor2)
         self.ren.ResetCamera()
         #self.show()
         self.iren.Initialize()
@@ -269,10 +269,12 @@ class MainWindow(QtGui.QWidget):
         self.vtkWidget = QVTKRenderWindowInteractor(self.frame)
         self.vl.addWidget(self.vtkWidget)
  
+        self.amp_max = 0
+        self.amp_min = 0
         self.ren = vtkRenderer()
         self.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
         self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
- 
+
 if __name__ == "__main__":
     app = QtGui.QApplication(sys.argv)
     window = MainWindow()
