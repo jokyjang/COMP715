@@ -75,8 +75,8 @@ class MainWindow(QtGui.QWidget):
     def load_vtr_file(self):
         
         #inputFileName = self.get_vtr_file()
-        inputFileName = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '~/')
-        #inputFileName = '/Users/zhangzhx/Dropbox/Homework/VisSci/HW1/Data/sst_1/sst_1_0_0.vtr'
+        #inputFileName = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '~/')
+        inputFileName = '/Users/zhangzhx/Documents/vis/lon320_lat60_PhaseMatrix/lon320_lat60_PhaseMatrix_0_0.vtr'
         self.draw_graph_from_file(inputFileName)
         
     def draw_graph(self):
@@ -136,7 +136,6 @@ class MainWindow(QtGui.QWidget):
                 color[2] = 255
 
             colors.InsertNextTupleValue(color)
-
         return colors
 
     def get_opacity_value(self, value, no_of_bands):
@@ -209,8 +208,6 @@ class MainWindow(QtGui.QWidget):
         reader.GetOutput().Register(reader)
         #typecasting to a more general class vtkDataSet
         dataSet = vtkDataSet.SafeDownCast(reader.GetOutput())
-
-        clone = self.clone_data(dataSet)
        
         #dataSet = self.slice_data(dataSet, 'phaseanomfil', -1, 1)
         pd = dataSet.GetPointData()
@@ -224,9 +221,10 @@ class MainWindow(QtGui.QWidget):
         print sstData.GetValue(16000)
         print sstData.GetNumberOfComponents()
         print dataSet.GetPoint(16000)
-        (minz, maxz) = sstData.GetRange()
+        #(minz, maxz) = sstData.GetRange()
+        (minz, maxz) = (-1, 1)
         #print minz, maxz
-       
+        
         colors = self.get_phase_color_map(sstData)
         dataSet.GetPointData().SetScalars(colors)
         
@@ -243,6 +241,7 @@ class MainWindow(QtGui.QWidget):
  
         #amplitude part starts here
 
+        clone = self.clone_data(dataSet)
         clone = self.slice_data(clone, 'ampanomfil', -1, 1)
         amplData = clone.GetPointData().GetArray('ampanomfil')
 

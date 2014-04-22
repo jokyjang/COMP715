@@ -1,9 +1,12 @@
 import os
 import sys
 import random
+import time
 from vtk import *
 from PyQt4 import QtCore, QtGui
+import math
 import numpy as np
+from scipy import signal
 from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
 
 global window
@@ -36,14 +39,13 @@ class MainWindow(QtGui.QWidget):
         self.anomArray = None
         self.data = 'sst'
         self.type = 'magnitude'
-        self.year = 1801
+        self.year = 1854
         self.month = 1
         self.phase = 0
         self.lon = 0
         self.lat = 0
     
     def initUI(self):
-        
         left = QtGui.QFrame(self)
         
         self.importBn = QtGui.QPushButton("Import", self)
@@ -74,13 +76,13 @@ class MainWindow(QtGui.QWidget):
         
         lyear = QtGui.QLabel('year:', self)
         lmonth = QtGui.QLabel('month:', self)
-        lphase = QtGui.QLabel('phase:', self)
+        self.lphase = QtGui.QLabel('phase:', self)
         self.yearLe = QtGui.QLineEdit(str(self.year), self)
         self.monthLe = QtGui.QLineEdit(str(self.month), self)
         self.phaseLe = QtGui.QLineEdit(str(self.phase), self)
         dateHL = QtGui.QHBoxLayout()
         dateHL.addStretch(1)
-        dateHL.addWidget(lphase)
+        dateHL.addWidget(self.lphase)
         dateHL.addWidget(self.phaseLe)
         dateHL.addWidget(lyear)
         dateHL.addWidget(self.yearLe)
@@ -146,14 +148,15 @@ class MainWindow(QtGui.QWidget):
         self.latLe.setEnabled(False)
         self.lonLe.setEnabled(False)
         self.drawBn.setEnabled(False)
+        self.sld.setEnabled(False)
     
     def getDate(self, value):
-        year = (value-1) // 12 + 1801
+        year = (value-1) // 12 + 1854
         month = (value-1) % 12 + 1
         return (year, month)
     
     def getVTRFile(self, year, month):
-        index = (year - 1801)*12+month-1
+        index = (year - 1854)*12+month-1
         return "%s/sst_%d_0_0.vtr" % (self.inputFileRoot, index)
     
     def setCoror(self, lon, lat):
@@ -221,17 +224,23 @@ class MainWindow(QtGui.QWidget):
             self.yearLe.setEnabled(False)
             self.monthLe.setEnabled(False)
             self.phaseLe.setEnabled(True)
+            self.latLe.setEnabled(True)
+            self.lonLe.setEnabled(True)
         elif (text == 'magnitude'):
             self.lsld.setText('Time:')
             self.yearLe.setEnabled(True)
             self.monthLe.setEnabled(True)
             self.phaseLe.setEnabled(False)
+            self.latLe.setEnabled(False)
+            self.lonLe.setEnabled(False)
         elif (text == 'phase'):
-            self.lsld.setEnabled(False)
-            self.lsld.setText('Phase:')
+            self.lphase.setText('# of phases:')
+            self.lsld.setText('# of phases:')
             self.yearLe.setEnabled(False)
             self.monthLe.setEnabled(False)
-            self.phaseLe.setEnabled(False)
+            self.phaseLe.setEnabled(True)
+            self.latLe.setEnabled(True)
+            self.lonLe.setEnabled(True)
     
     def importListner(self):
         #inputFileName = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '~/')
@@ -241,6 +250,9 @@ class MainWindow(QtGui.QWidget):
         self.anomArray = self.loadAllVTRFiles('anom')
         self.drawBn.setEnabled(True)
         self.drawVTR(inputFileName)
+        self.yearLe.setEnabled(True)
+        self.monthLe.setEnabled(True)
+        self.sld.setEnabled(True)
     
     def getIndexFromCoror(self, lon, lat):
         return lon/2+(lat+88)/2*89
@@ -252,31 +264,66 @@ class MainWindow(QtGui.QWidget):
         self.month = int(self.monthLe.text())
         self.lon = int(self.lonLe.text())
         self.lat = int(self.latLe.text())
+        self.phase = float(self.phaseLe.text())
         if self.type == 'magnitude':
             inputFileName = self.getVTRFile(self.year, self.month)
             self.drawVTR(inputFileName)
         elif self.type == 'correlation':
             dataArray = self.sstArray if self.data == 'sst' else self.anomArray
             index = self.getIndexFromCoror(self.lon, self.lat)
-            corr = self.calculateCorr(dataArray, index)
+            corr = self.calculateCorr(dataArray, index, self.phase)
             self.drawCorr(corr)
         elif self.type == 'phase':
             dataArray = self.sstArray if self.data == 'sst' else self.anomArray
             index = self.getIndexFromCoror(self.lon, self.lat)
-            (phase, corr) = self.calculatePhase(dataArray, index)
+            (phase, corr) = self.calculatePhase(dataArray, index, int(self.phase))
             self.drawPhase(phase, corr)
-            
-    def calculateCorr(self, dataArray, index):
+    
+    def phshift(self, y, pd):
+        ymean=np.mean(y)
+        my = [i-ymean for i in y]
+        hy = signal.hilbert(my)
+        my = [abs(i)*math.cos((pd*np.pi)+np.arctan(i.imag/i.real)) for i in hy]
+        #my=abs(hy)*cos( (pd*pi) + (Arg(hy)) )
+        my = [i+ymean for i in my]
+        return my
+    
+    # too slower than the default numpy version
+    def corrcoef(self, x, y):
+        ux = np.mean(x)
+        uy = np.mean(y)
+        sx = [i-ux for i in x]
+        sy = [i-uy for i in y]
+        covA = [sx[i]*sy[i] for i in range(len(x))]
+        vx = [sx[i]*sx[i] for i in range(len(x))]
+        vy = [sy[i]*sy[i] for i in range(len(y))]
+        return sum(covA)/(math.sqrt(sum(vx)*sum(vy)))
+    
+    def calculateCorr(self, dataArray, index, phase):
+        #time1 = time.time()
         size = dataArray.shape[1]
         corr = [0 for i in xrange(size)]
+        array = self.phshift(dataArray[:,index], phase)
         for i in xrange(size):
             if (dataArray[0][i] < -900):
                 corr[i] = dataArray[0][i]
             else:
-                corr[i] = np.corrcoef(dataArray[:,i], dataArray[:,index])[0][1]
+                corr[i] = np.corrcoef(dataArray[:,i], array)[0][1]
+                #corr[i] = self.corrcoef(dataArray[:,i], array)
         return np.array(corr)
     
-    def calculatePhase(self, dataArray, index):
+    def fitPhase(self, y1, y2, N):
+        phrange = np.arange(-1, 1, 2.0/N)
+        phmax, ycormax = -2, 0
+        for i in range(N):
+            y2m = self.phshift(y2, phrange[i])
+            ycor = np.corrcoef(y1, y2m)[0][1]
+            if (ycor > ycormax):
+                ycormax = ycor
+                phmax = phrange[i]
+        return (phmax, ycormax)
+    
+    def calculatePhase(self, dataArray, index, N):
         size = dataArray.shape[1]
         phase = [0 for i in xrange(size)]
         corr = [0 for i in xrange(size)]
@@ -284,8 +331,8 @@ class MainWindow(QtGui.QWidget):
             if (dataArray[0][i] < -900):
                 phase[i] = corr[i] = dataArray[0][i]
             else:
-                phase[i] = random.random() * 2 - 1
-                corr[i] = random.random() * 2 - 1
+                #(phase[i], corr[i]) = self.fitPhase(dataArray[:, i], dataArray[:, index], N)
+                (phase[i], corr[i]) = (random.random()*2-1, random.random())
         return (phase, corr)
     
     def loadAllVTRFiles(self, data):
@@ -312,16 +359,16 @@ class MainWindow(QtGui.QWidget):
     
     #TODO
     def get_phase_color_map(self, phase):
-        
+        #print phase
         transFunction = vtkDiscretizableColorTransferFunction()
         transFunction.SetNumberOfValues(8)
         transFunction.DiscretizeOn()
         transFunction.AddRGBPoint(-1.0, 1, 1, 1)
-        transFunction.AddRGBPoint(-0.6, 0.902, 0.902, 0)
         transFunction.AddRGBPoint(-0.757979, 0.9294, 0.9294, 0.2862)
-        #transFunction.AddRGBPoint(-0.488299, 236, 236, 59)
+        transFunction.AddRGBPoint(-0.6, 0.902, 0.902, 0)
+        #transFunction.AddRGBPoint(-0.488299, 236/255.0, 236/255.0, 59/255.0)
         #transFunction.AddRGBPoint(0, 230, 0, 0)
-        #transFunction.AddRGBPoint(0.244677, 164, 0 , 0)
+        #transFunction.AddRGBPoint(0.244677, 164/255.0, 0 , 0)
         transFunction.AddRGBPoint(0.2, 0.902,0,0)
         transFunction.AddRGBPoint(1.0, 0, 0, 0)
 
@@ -355,9 +402,10 @@ class MainWindow(QtGui.QWidget):
 
         calc = vtkArrayCalculator()
         calc.SetInputData(dataset)
-        #calc.AddScalarArrayName("ampanomfil")
+        calc.AddScalarArrayName("sst")
         #calc.SetFunction("ampanomfil");
-        #calc.SetResultArrayName("clone");
+        calc.SetResultArrayName("corr");
+        corr = calc.GetOutput().GetPointData().GetArray('corr')
         calc.Update();
         
         return calc.GetOutput()
@@ -411,11 +459,22 @@ class MainWindow(QtGui.QWidget):
 
         return colors
     
+    def slice_data(self, dataset, arrayName, lower, upper):
+
+        dataset.GetPointData().SetActiveScalars(arrayName)
+        thresholdFilter = vtkThresholdPoints()
+        thresholdFilter.ThresholdBetween(lower, upper)
+        thresholdFilter.SetInputData(dataset)
+        thresholdFilter.Update()
+
+        return thresholdFilter.GetOutput()
+    
     def drawPhase(self, phase, corr):
-       
-        (minz, maxz) = (-1, 1)
+        
+        #(minz, maxz) = min(phase), max(phase)
         #print minz, maxz
-       
+        #(minz, maxz) = (-1, 1) 
+        '''
         colors = self.get_phase_color_map(phase)
         self.dataSet.GetPointData().SetScalars(colors)
         
@@ -429,12 +488,11 @@ class MainWindow(QtGui.QWidget):
         # Create an actor
         actor = vtkActor()
         actor.SetMapper(mapper)
- 
-        #amplitude part starts here
-        
+        '''
+        #amplitude part starts here 
         clone = self.clone_data(self.dataSet)
-        #clone = self.slice_data(clone, 'ampanomfil', -1, 1)
-        #amplData = clone.GetPointData().GetArray('ampanomfil')
+        clone = self.slice_data(clone, 'corr', -1, 1)
+        amplData = clone.GetPointData().GetArray('corr')
 
 
         colors1 = self.get_amp_color_map(corr)
@@ -448,7 +506,7 @@ class MainWindow(QtGui.QWidget):
         actor2.SetMapper(ampMapper)
         #actor2.GetProperty().SetOpacity(0.995);
 
-        self.ren.AddActor(actor)
+        #self.ren.AddActor(actor)
         self.ren.AddActor(actor2)
         self.ren.ResetCamera()
         #self.show()
@@ -548,16 +606,12 @@ class MainWindow(QtGui.QWidget):
         
         for i in range(self.dataSet.GetNumberOfPoints()):
             p = dataset.GetValue(i)
-            
             dcolor = [0 for i in range(3)]
             colorLookupTable.GetColor(p, dcolor)
-            
             color = [0 for i in range(3)]
             for j in range(3):
                 color[j] = int(255.0 * dcolor[j])
-            
             colors.InsertNextTupleValue(color)
-        
         self.dataSet.GetPointData().SetScalars(colors)
         
         # Create a mapper
@@ -581,12 +635,22 @@ class MainWindow(QtGui.QWidget):
         self.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
         self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
         self.iren.SetInteractorStyle(MouseInteractorStylePP(self))
+    
+    # value is from 1 to 1920, transform it to -1 to 1
+    def getPhase(self, value):
+        value = ((2*value)-1921)/1919.0
+        return value
         
     def sldChangeValue(self, value):
-        (self.year, self.month) = self.getDate(value)
-        self.yearLe.setText(str(self.year))
-        self.monthLe.setText(str(self.month))
-        self.drawListner()
+        if (self.type == 'magnitude'):
+            (self.year, self.month) = self.getDate(value)
+            self.yearLe.setText(str(self.year))
+            self.monthLe.setText(str(self.month))
+            self.drawListner()
+        elif (self.type == 'correlation'):
+            self.phase = self.getPhase(value)
+            self.phaseLe.setText('%.2f' % self.phase)
+            self.drawListner()
         #inputFileName = self.getVTRFile(self.year, self.month)
         #self.drawVTR(inputFileName)
 
