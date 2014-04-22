@@ -59,7 +59,6 @@ class MainWindow(QtGui.QWidget):
         splitter.addWidget(self.frame)
         splitter.setSizes([225, self.widthL-225])
 
-        print "fuck you#", self.widthL
         vbox = QtGui.QHBoxLayout()
         vbox.addWidget(splitter)
         self.setLayout(vbox)
@@ -112,20 +111,72 @@ class MainWindow(QtGui.QWidget):
         return thresholdFilter.GetOutput()
         #return gFilter.GetOutput()
 
-    def get_phase_color_map(self, dataset):
-        
-        transFunction = vtkDiscretizableColorTransferFunction()
-        transFunction.SetNumberOfValues(8)
-        transFunction.DiscretizeOn()
-        transFunction.AddRGBPoint(-1.0, 1, 1, 1)
-        transFunction.AddRGBPoint(-0.6, 0.902, 0.902, 0)
-        transFunction.AddRGBPoint(-0.757979, 0.9294, 0.9294, 0.2862)
-        #transFunction.AddRGBPoint(-0.488299, 236, 236, 59)
-        #transFunction.AddRGBPoint(0, 230, 0, 0)
-        #transFunction.AddRGBPoint(0.244677, 164, 0 , 0)
-        transFunction.AddRGBPoint(0.2, 0.902,0,0)
-        transFunction.AddRGBPoint(1.0, 0, 0, 0)
+    def get_lut(self, target, minv, maxv, renderer):
+      
+        no_of_steps = 8
+        dim = 3
+        step = (maxv-minv)/no_of_steps
 
+        colors = [[0 for k in xrange(dim)] for j in xrange(no_of_steps+1)]
+        colors[0][0] = 0.23
+        colors[0][1] = 0.3
+        colors[0][2] = 0.75
+        colors[1][0] = 0.40
+        colors[1][1] = 0.54
+        colors[1][2] = 0.93
+        colors[2][0] = 0.43
+        colors[2][1] = 0.56
+        colors[2][2] = 0.95
+        colors[3][0] = 0.5
+        colors[3][1] = 0.63
+        colors[3][2] = 0.98
+        colors[4][0] = 0.87
+        colors[4][1] = 0.87
+        colors[4][2] = 0.87
+        colors[5][0] = 0.93
+        colors[5][1] = 0.82
+        colors[5][2] = 0.76
+        colors[6][0] = 0.97
+        colors[6][1] = 0.7
+        colors[6][2] = 0.59
+        colors[7][0] = 0.92
+        colors[7][1] = 0.49
+        colors[7][2] = 0.37
+        colors[8][0] = 0.7
+        colors[8][1] = 0.015
+        colors[8][2] = 0.15
+
+        transFunction = vtkDiscretizableColorTransferFunction()
+        transFunction.SetNumberOfValues(no_of_steps+1)
+        transFunction.DiscretizeOn()
+
+        for i in range(0, no_of_steps+1):
+            transFunction.addRGBPoint(minv + i * step, colors[i][0],
+                    colors[i][1], colors[i][2])
+
+        scalarBarTransFunction = vtkDiscretizableColorTransferFunction()
+        scalarBarTransFunction.DeepCopy(transFunction)
+        scalarBarTransFunction.SetNumberOfValues(no_of_steps)
+
+        #continents in deep purple color
+        transFunction.AddRGBPoint(-999, 0.56, 0.27, 0.52)
+
+        scalarBar = vtkScalarBarActor()
+        scalarBar.SetLookupTable(scalarBarTransFunction)
+        scalarBar.SetDisplayPosition(self.widthL * 0.2, 20)
+        scalarBar.SetWidth(0.5)
+        scalarBar.SetHeight(0.08)
+        # Do not stretch beyond the default size
+        scalarBar.SetMaximumWidthInPixels(scalarBar.GetWidth() * self.widthL)
+        scalarBar.SetMaximumHeightInPixels(scalarBar.GetHeight() * self.heightL)
+        scalarBar.SetOrientationToHorizontal()
+        renderer.AddActor2D(scalarBar)
+
+        return transFunction
+
+    def get_phase_color_map(self, dataset):
+
+        transFunction  = self.get_lut()
         scalarBar = vtkScalarBarActor()
         #scalarBar.SetLookupTable(colorLookupTable)
         scalarBar.SetLookupTable(transFunction)
@@ -186,7 +237,7 @@ class MainWindow(QtGui.QWidget):
 
         return actor2
 
-    def get_glyph_plan (self, dataset, low, high):
+    def get_glyph_plane (self, dataset, low, high):
 
         #lowerHalf = self.clone_data(dataset, self.amplitude)
 
@@ -272,6 +323,50 @@ class MainWindow(QtGui.QWidget):
         calc.Update();
         
         return calc.GetOutput()
+
+    # Here it is assumed that the dataset contains only valid entries and
+    # all the invalid entries are marked with value -999
+    def get_correlation_uncertainity_design(self, dataset, target, renderer):
+
+        clone = self.clone_data (dataset, target)
+
+        pd = dataSet.GetPointData()
+        amplitude = pd.GetArray(target)
+        #print sstData.__class__
+        #for i in range(numOfArrays):
+     
+        (minv, maxv) = amplitude.GetRange()
+        lut = self.get_lut(target, minv, maxv, renderer) 
+        #colors = self.get_phase_color_map(sstData)
+        dataSet.GetPointData().SetActiveScalars('phaseanomfil')
+        #dataSet.GetPointData().SetScalars(colors)
+        # Create a mapper
+        mapper = vtkDataSetMapper()
+        #mapper.SetInputConnection(reader.GetOutputPort())
+        mapper.SetInput(dataSet)
+        mapper.InterpolateScalarsBeforeMappingOn()
+        mapper.ScalarVisibilityOn()
+        mapper.SetColorModeToMapScalars()
+        mapper.SetLookupTable(lut)
+        
+        # Create an actor
+        actor = vtkActor()
+        actor.SetMapper(mapper)
+        actor.SetScale(8.0, 8.0, 8.0)
+         
+        #amplitude part starts here
+        #actor2 = self.get_glyph_plane(clone, 0, 1)
+        #actor2.SetScale(8.0, 8.0, 8.0)
+
+        actor2 = self.get_uncertainity_plan(clone, 0.3, 1)
+        actor2.SetScale(8.0, 8.0, 8.0)
+        self.ren.AddActor2D(actor)
+        self.ren.AddActor2D(actor2)
+        self.ren.ResetCamera()
+        self.show()
+        self.iren.Initialize()
+        
+
         
     def draw_graph_from_file(self, inputFileName):
         
@@ -287,45 +382,52 @@ class MainWindow(QtGui.QWidget):
 
         clone = self.clone_data(dataSet, self.amplitude)
 
-        #dataSet = self.slice_data(dataSet, 'phaseanomfil', -1, 1, True, False,
-        #        False)
-        print "#debug"
         pd = dataSet.GetPointData()
         numOfArrays = pd.GetNumberOfArrays()
         sstData = pd.GetArray('phaseanomfil')
         #print sstData.__class__
-        for i in range(numOfArrays):
-            print pd.GetArrayName(i)
-        
-        print sstData.GetSize()
-        print sstData.GetNumberOfComponents()
-        (minz, maxz) = sstData.GetRange()
-        #print minz, maxz
-       
-        colors = self.get_phase_color_map(sstData)
-        dataSet.GetPointData().SetScalars(colors)
+        #for i in range(numOfArrays):
+      
+        lut = self.get_lut() 
+        #colors = self.get_phase_color_map(sstData)
+        dataSet.GetPointData().SetActiveScalars('phaseanomfil')
+        #dataSet.GetPointData().SetScalars(colors)
         # Create a mapper
         mapper = vtkDataSetMapper()
         #mapper.SetInputConnection(reader.GetOutputPort())
         mapper.SetInput(dataSet)
+        mapper.InterpolateScalarsBeforeMappingOn()
         mapper.ScalarVisibilityOn()
+        mapper.SetColorModeToMapScalars()
+        mapper.SetLookupTable(lut)
         
         # Create an actor
         actor = vtkActor()
         actor.SetMapper(mapper)
+        actor.SetScale(8.0, 8.0, 8.0)
          
         #amplitude part starts here
         #actor2 = self.get_glyph_plane(clone, 0, 1)
+        #actor2.SetScale(8.0, 8.0, 8.0)
 
         actor2 = self.get_uncertainity_plan(clone, 0.3, 1)
-        self.ren.AddActor(actor)
-        self.ren.AddActor(actor2)
+        actor2.SetScale(8.0, 8.0, 8.0)
+        self.ren.AddActor2D(actor)
+        self.ren.AddActor2D(actor2)
         self.ren.ResetCamera()
         self.show()
         self.iren.Initialize()
         
     def initVTK(self):
-        
+     
+        '''
+        Keypress j / Keypress t: toggle between joystick (position
+        sensitive) and trackball (motion sensitive) styles. In
+        joystick style, motion occurs continuously as long as a 
+        mouse button is pressed. In trackball style, motion occurs
+        when the mouse button is pressed and the mouse pointer moves.
+        '''
+
         self.vtkWidget = QVTKRenderWindowInteractor(self.frame)
         self.vl.addWidget(self.vtkWidget)
 
