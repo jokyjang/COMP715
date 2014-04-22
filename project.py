@@ -441,12 +441,12 @@ class MainWindow(QtGui.QWidget):
         dataSet = vtkDataSet.SafeDownCast(reader.GetOutput())
 
         #1st Goal
-        #self.ren = self.get_correlation_uncertainity_design(dataSet, "ampanomfil",
-        #        self.ren, 0.6, 1)
+        self.ren = self.get_correlation_uncertainity_design(dataSet, "ampanomfil",
+                self.ren, 0.6, 1)
         #dataSet.GetPointData().SetActiveScalars('phaseanomfil')
 
-        self.ren = self.get_correlation_phase_map(dataSet,'phaseanomfil',
-                "ampanomfil", self.ren, 0.4, 1)
+        #self.ren = self.get_correlation_phase_map(dataSet,'phaseanomfil',
+        #        "ampanomfil", self.ren, 0.4, 1)
 
         self.ren.ResetCamera()
         self.show()
