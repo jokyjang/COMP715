@@ -8,6 +8,7 @@ import math
 import numpy as np
 from scipy import signal
 from vtk.qt4.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from matplotlib import pyplot as plt
 
 global window
 
@@ -47,7 +48,7 @@ class MainWindow(QtGui.QWidget):
         self.heightL = 600
         
     def getIndexFromCoror(self, lon, lat):
-        return lon/2+(lat+88)/2*89    
+        return lon/2+(lat+88)/2*180
     def initUI(self):
         left = QtGui.QFrame(self)
         
@@ -155,7 +156,7 @@ class MainWindow(QtGui.QWidget):
     def initVTK(self):
         self.vtkWidget = QVTKRenderWindowInteractor(self.frame)
         self.vl.addWidget(self.vtkWidget)
- 
+        
         self.ren = vtkRenderer()
         self.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
         self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
@@ -168,16 +169,16 @@ class MainWindow(QtGui.QWidget):
         self.latLe.setText(str(lat))
     def importListner(self):
         #inputFileName = QtGui.QFileDialog.getOpenFileName(self, 'Open file', '~/')
-        #inputFileName = '/Users/zhangzhx/Dropbox/Homework/VisSci/HW1/Data/sst_1_0_0.vtr'
+        #inputFileName = '/Users/zhangzhx/Dropbox/Homework/VisSci/HW1/Data/sst_0_0_0.vtr'
         inputFileName = '/Users/zhangzhx/Documents/vis/fake_data/fake_data_0_0_0.vtr'
         self.inputFileRoot = inputFileName[:str(inputFileName).rfind('0_0_0')]
-        #self.sstArray = self.loadAllVTRFiles('sst')
-        self.anomArray = self.loadAllVTRFiles('anom')
-        self.drawBn.setEnabled(True)
         self.drawVTR(inputFileName)
+        self.drawBn.setEnabled(True)
         self.yearLe.setEnabled(True)
         self.monthLe.setEnabled(True)
         self.sld.setEnabled(True)
+        self.sstArray = self.loadAllVTRFiles('sst')
+        self.anomArray = self.loadAllVTRFiles('anom')
     def drawListner(self):
         self.type = self.typeC.itemText(self.typeC.currentIndex())
         self.data = self.dataC.itemText(self.dataC.currentIndex())
@@ -186,6 +187,12 @@ class MainWindow(QtGui.QWidget):
         self.lon = int(self.lonLe.text())
         self.lat = int(self.latLe.text())
         self.phase = float(self.phaseLe.text())
+        
+        self.ren = vtkRenderer()
+        self.vtkWidget.GetRenderWindow().AddRenderer(self.ren)
+        self.iren = self.vtkWidget.GetRenderWindow().GetInteractor()
+        self.iren.SetInteractorStyle(MouseInteractorStylePP(self))
+        
         if self.type == 'magnitude':
             inputFileName = self.getVTRFile(self.year, self.month)
             self.drawVTR(inputFileName)
@@ -249,6 +256,7 @@ class MainWindow(QtGui.QWidget):
         dataSet = vtkDataSet.SafeDownCast(reader.GetOutput())
         pd = dataSet.GetPointData()
         dataset = pd.GetArray(str(data))
+        if dataset == None: return None
         dataArray = [dataset.GetValue(i) for i in range(dataset.GetSize())]
         return dataArray
     
@@ -259,7 +267,9 @@ class MainWindow(QtGui.QWidget):
                 inputFileName = self.getVTRFile(y, m)
                 if not os.path.exists(inputFileName):
                     print inputFileName, 'does not exist'
-                dataArray.append(self.loadVTRFile(inputFileName, data))
+                array = self.loadVTRFile(inputFileName, data)
+                if array == None: return None
+                dataArray.append(array)
         return np.array(dataArray)
     
     def get_vtr_color_map(self, dataset):
@@ -422,15 +432,21 @@ class MainWindow(QtGui.QWidget):
         size = dataArray.shape[1]
         corr = [0.0 for i in xrange(size)]
         array = self.phshift(dataArray[:,index], phase)
+        #array = dataArray[:, index]
         time1 = time.time()
         for i in xrange(size):
             if (dataArray[0][i] < -900):
                 corr[i] = dataArray[0][i]
             else:
                 corr[i] = np.corrcoef(dataArray[:,i], array)[0][1]
+                if i == index:
+                    for j in range(len(array)):
+                        print array[j], dataArray[j,i]
                 #corr[i] = self.corrcoef(dataArray[:,i], array)
         time2 = time.time()
-        print 'time used: ', time2-time1
+        #print 'time used: ', time2-time1
+        #plt.hist(corr, bins=100, range=(-1,1))
+        #plt.show()
         return corr
     
     def setCorrArray(self, array, name):
@@ -518,7 +534,7 @@ class MainWindow(QtGui.QWidget):
         for i in range(0, no_of_steps+1):
             transFunction.AddRGBPoint(minv + i * step, colors[i][0],
                     colors[i][1], colors[i][2])
-            print "step value# ", minv + i * step
+            #print "step value# ", minv + i * step
 
         '''
         scalarBarTransFunction = vtkDiscretizableColorTransferFunction()
@@ -579,14 +595,14 @@ class MainWindow(QtGui.QWidget):
             color = [0 for i in range(4)]
             if p >= low and p <= high:  
                 for j in range(4):
-                    color[j] = 155
+                    color[j] = 255
                 color[3] = 0
-            elif p >= -1 and p < low:
+            elif p >= -1 and p < low:   ## cover color?
                 color[0] = 55
                 color[1] = 55
                 color[2] = 55
                 color[3] = 200
-            else:
+            else:   ## continent?
                 color[0] = 142
                 color[1] = 69
                 color[2] = 133
@@ -595,7 +611,7 @@ class MainWindow(QtGui.QWidget):
             colors.InsertNextTupleValue(color)
 
         return colors
-    
+    # every time, you click mouse, you create a new renderer and interactor?
     def get_uncertainity_plane (self, dataset, target, low, high):
 
         clone = dataset
@@ -604,7 +620,8 @@ class MainWindow(QtGui.QWidget):
 
         colors = self.get_amp_color_map(amplData, low, high)
         clone.GetPointData().SetScalars(colors)
-
+        
+        # I didn't use another clone, I just used one clone before
         ampMapper = vtkDataSetMapper()
         ampMapper.SetInputData(clone)
         ampMapper.ScalarVisibilityOn()
@@ -620,16 +637,17 @@ class MainWindow(QtGui.QWidget):
         #to get the minimum in the dataset
         clone2 = self.clone_data (self.dataSet, target)
         clone2 = self.slice_data(clone2, target, -1, 1, True, False, False)
-        ampl = clone2.GetPointData().GetArray(target)
+        #ampl = clone2.GetPointData().GetArray(target)
+        ampl = self.dataSet.GetPointData().GetArray(target)
    
         (minv, maxv) = ampl.GetRange()
+        print "amplitude min# max#", minv, maxv
         if minv == -999:
             minv = -1
 
-        print "amplitude min# max#", minv, maxv
+        print '#minv:', minv, '#maxv:', maxv
         lut = self.get_lut(minv, maxv) 
         self.dataSet.GetPointData().SetActiveScalars(target)
-        #self.dataSet.GetPointData().SetScalars(lut)
         
         mapper = vtkDataSetMapper()
         mapper.SetInputData(self.dataSet)
@@ -643,11 +661,11 @@ class MainWindow(QtGui.QWidget):
         actor.SetMapper(mapper)
         #actor.SetScale(8.0, 8.0, 0.0)
          
-        #clone = self.clone_data (self.dataSet, target)
-        #actor2 = self.get_uncertainity_plane(clone, target, low, high)
+        clone = self.clone_data (self.dataSet, target)
+        actor2 = self.get_uncertainity_plane(clone, target, low, high)
         ##actor2.SetScale(8.0, 8.0, 0.0)
         self.ren.AddActor2D(actor)
-        #self.ren.AddActor2D(actor2)
+        self.ren.AddActor2D(actor2)
         self.ren.ResetCamera()
         self.iren.Initialize()
     
@@ -659,7 +677,6 @@ class MainWindow(QtGui.QWidget):
             #print 'type:', self.dataSet.GetPointData().GetDataType()
         #1st Goal
         self.get_correlation_uncertainity_design("ampanomfil", 0.6, 1)
-
         #self.ren = self.get_correlation_phase_map(dataSet,'phaseanomfil',
         #        "ampanomfil", self.ren, 0.4, 1)
 
