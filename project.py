@@ -71,7 +71,7 @@ class MainWindow(QtGui.QWidget):
     
     def get_vtr_file(self):
         
-        root = '/home/rajesh/Documents/UNC/4th sem/visualization/HWs/Project/data'
+        root = '/Users/zhangzhx/Dropbox/workspace/VISP/data'
         #index = (self.year - 1800)*12+self.month
         index = 0
         return "%s/test/test_%d_0.vtr" % (root, index)
@@ -102,11 +102,11 @@ class MainWindow(QtGui.QWidget):
         else:
             thresholdFilter.ThresholdByLower(lower)
 
-        thresholdFilter.SetInput(dataset)
+        thresholdFilter.SetInputData(dataset)
         thresholdFilter.Update()
 
         #gFilter = vtkGeometryFilter()
-        #gFilter.SetInput(thresholdFilter.GetOutput())
+        #gFilter.SetInputData(thresholdFilter.GetOutput())
         #gFilter.Update()
         return thresholdFilter.GetOutput()
         #return gFilter.GetOutput()
@@ -166,12 +166,12 @@ class MainWindow(QtGui.QWidget):
 
         scalarBar = vtkScalarBarActor()
         scalarBar.SetLookupTable(transFunction)
-        scalarBar.SetDisplayPosition(self.widthL * 0.2, 20)
+        scalarBar.SetDisplayPosition(int(self.widthL * 0.2), 20)
         scalarBar.SetWidth(0.5)
         scalarBar.SetHeight(0.08)
         # Do not stretch beyond the default size
-        scalarBar.SetMaximumWidthInPixels(scalarBar.GetWidth() * self.widthL)
-        scalarBar.SetMaximumHeightInPixels(scalarBar.GetHeight() * self.heightL)
+        scalarBar.SetMaximumWidthInPixels(int(scalarBar.GetWidth() * self.widthL))
+        scalarBar.SetMaximumHeightInPixels(int(scalarBar.GetHeight() * self.heightL))
         scalarBar.SetOrientationToHorizontal()
         renderer.AddActor2D(scalarBar)
 
@@ -187,7 +187,7 @@ class MainWindow(QtGui.QWidget):
         clone.GetPointData().SetScalars(colors)
 
         ampMapper = vtkDataSetMapper()
-        ampMapper.SetInput(clone)
+        ampMapper.SetInputData(clone)
         ampMapper.ScalarVisibilityOn()
 
         actor = vtkActor()
@@ -208,7 +208,7 @@ class MainWindow(QtGui.QWidget):
         glyphs.Update()
 
         glyph = vtkGlyph2D()
-        glyph.SetInput(clone)
+        glyph.SetInputData(clone)
         glyph.SetScaleModeToScaleByScalar()
         glyph.SetScaleFactor(2)
         glyph.SetSourceConnection(glyphs.GetOutputPort())
@@ -226,7 +226,7 @@ class MainWindow(QtGui.QWidget):
 
         #glyphMapper = vtkGlyph3DMapper()
         glyphMapper = vtkPolyDataMapper()
-        glyphMapper.SetInputConnection(glyph.GetOutputPort())
+        glyphMapper.SetInputDataConnection(glyph.GetOutputPort())
         glyphMapper.SetLookupTable(lut) 
         actor2 = vtkActor()
         actor2.SetMapper(glyphMapper)
@@ -268,7 +268,7 @@ class MainWindow(QtGui.QWidget):
     def clone_data(self, dataset, target):
 
         calc = vtkArrayCalculator()
-        calc.SetInput(dataset)
+        calc.SetInputData(dataset)
         calc.AddScalarArrayName(target)
         calc.SetFunction(target);
         calc.SetResultArrayName(target);
@@ -303,7 +303,7 @@ class MainWindow(QtGui.QWidget):
         dataset.GetPointData().SetActiveScalars(target)
         
         mapper = vtkDataSetMapper()
-        mapper.SetInput(dataset)
+        mapper.SetInputData(dataset)
         mapper.InterpolateScalarsBeforeMappingOn()
         mapper.ScalarVisibilityOn()
         mapper.SetColorModeToMapScalars()
@@ -409,7 +409,7 @@ class MainWindow(QtGui.QWidget):
         dataSet.GetPointData().SetActiveScalars(phaseArray)
         
         mapper = vtkDataSetMapper()
-        mapper.SetInput(dataSet)
+        mapper.SetInputData(dataSet)
         mapper.InterpolateScalarsBeforeMappingOn()
         mapper.ScalarVisibilityOn()
         mapper.SetColorModeToMapScalars()
