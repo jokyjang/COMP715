@@ -289,11 +289,17 @@ class MainWindow(QtGui.QWidget):
                 color[0] = 55
                 color[1] = 55
                 color[2] = 55
-                color[3] = 200
+                color[3] = 180
             else:
+                '''
                 color[0] = 142
                 color[1] = 69
                 color[2] = 133
+                color[3] = 255
+                '''
+                color[0] = 117
+                color[1] = 190
+                color[2] = 117
                 color[3] = 255
 
             colors.InsertNextTupleValue(color)
@@ -538,12 +544,11 @@ class MainWindow(QtGui.QWidget):
         dataSet = vtkDataSet.SafeDownCast(reader.GetOutput())
 
         #1st Goal
-        #self.ren = self.get_correlation_uncertainity_design(dataSet, "ampanomfil",
-                #self.ren, 0.6, 1)
-        dataSet.GetPointData().SetActiveScalars('phaseanomfil')
+        self.ren = self.get_correlation_uncertainity_design(dataSet, "ampanomfil",
+                self.ren, 0.3, 1)
 
-        self.ren = self.get_correlation_phase_map(dataSet,'phaseanomfil',
-                "ampanomfil", self.ren, 0.4, 1)
+        #self.ren = self.get_correlation_phase_map(dataSet,'phaseanomfil',
+                #"ampanomfil", self.ren, 0.4, 1)
 
         self.ren.ResetCamera()
         self.show()
