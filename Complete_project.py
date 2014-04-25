@@ -231,8 +231,8 @@ class MainWindow(QtGui.QWidget):
         lut =  vtkLookupTable()
         lut.SetNumberOfTableValues(2);
         lut.SetRange(0.0,1.0);
-        lut.SetTableValue( 0, 0, 1.0, 1.0);
-        lut.SetTableValue( 1, 0.0, 1.0, 1.0);
+        lut.SetTableValue( 0, 0, 0.0, 1.0);
+        lut.SetTableValue( 1, 0.0, 0.0, 1.0);
         lut.Build()
 
         glyphMapper = vtkPolyDataMapper()
@@ -314,9 +314,9 @@ class MainWindow(QtGui.QWidget):
                     color[j] = 155
                 color[3] = 0
             else:
-                color[0] = 142
-                color[1] = 69
-                color[2] = 133
+                color[0] = 27
+                color[1] = 40
+                color[2] = 20
                 color[3] = 255
 
             colors.InsertNextTupleValue(color)
@@ -417,9 +417,9 @@ class MainWindow(QtGui.QWidget):
         colors[2][0] = 0.90
         colors[2][1] = 0.71
         colors[2][2] = 0
-        colors[1][0] = 0.97
-        colors[1][1] = 0.97
-        colors[1][2] = 0.67
+        colors[1][0] = 0.93
+        colors[1][1] = 0.93
+        colors[1][2] = 0.3
         colors[0][0] = 1
         colors[0][1] = 1
         colors[0][2] = 1
